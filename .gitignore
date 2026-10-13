@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 instance/*.db-journal
+*.db
 .venv/
 env/
 .DS_Store

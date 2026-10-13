@@ -10,7 +10,11 @@ class FirewallManager:
     @staticmethod
     def is_admin():
         try:
-            return ctypes.windll.shell32.IsUserAnAdmin() != 0
+            if os.name == 'nt':
+                import ctypes
+                return ctypes.windll.shell32.IsUserAnAdmin() != 0
+            else:
+                return hasattr(os, 'geteuid') and os.geteuid() == 0
         except Exception:
             return False
 
