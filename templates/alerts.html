@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+  <div>
+    <h1 style="font-size: 22px; font-weight: 700; color: #fff;">Security Alerts Incident Triage</h1>
+    <p style="color: var(--text-muted); font-size: 13px;">Investigate suspicious network intrusions and manage SOC workflow states</p>
+  </div>
+  <div>
+    <a href="/api/reports/export?type=alerts" class="btn btn-outline">📥 Export Alerts CSV</a>
+  </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="stat-card" style="margin-bottom: 24px;">
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: flex-end;">
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label">Severity Filter</label>
+      <select class="form-control" id="sel-severity" onchange="fetchAlerts()">
+        <option value="">All Severities</option>
+        <option value="Critical">Critical</option>
+        <option value="High">High</option>
+        <option value="Medium">Medium</option>
+        <option value="Low">Low</option>
+      </select>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label">Status Filter</label>
+      <select class="form-control" id="sel-status" onchange="fetchAlerts()">
+        <option value="">All Statuses</option>
+        <option value="New">New</option>
+        <option value="Acknowledged">Acknowledged</option>
+        <option value="Resolved">Resolved</option>
+      </select>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label">Search Alert</label>
+      <input type="text" class="form-control" id="txt-search-alerts" placeholder="Search IP or threat type..." onkeyup="fetchAlerts()">
+    </div>
+  </div>
+</div>
+
+<!-- Alerts Table -->
+<div class="chart-card">
+  <div class="card-header">
+    <div class="card-title">Active Security Incident Queue</div>
+    <button class="btn btn-outline btn-sm" onclick="fetchAlerts()">🔄 Refresh</button>
+  </div>
+
+  <div class="table-responsive">
+    <table class="cyber-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Timestamp</th>
+          <th>Threat Classification</th>
+          <th>Source IP</th>
+          <th>Target IP</th>
+          <th>Severity</th>
+          <th>Confidence</th>
+          <th>Status</th>
+          <th>Triage Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbl-alerts-body">
+        <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 30px;">Loading alerts...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Alert Detail Modal -->
+<div class="modal-overlay" id="alert-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="modal-title" id="modal-alert-title">Incident Details</h3>
+      <button class="modal-close" onclick="closeAlertModal()">✕</button>
+    </div>
+    <div id="modal-alert-body" style="font-size: 13px; line-height: 1.6;">
+      <!-- Content filled by JS -->
+    </div>
+    <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+      <button class="btn btn-outline btn-sm" onclick="closeAlertModal()">Close</button>
+      <button class="btn btn-primary btn-sm" id="btn-modal-quarantine" onclick="quarantineFromModal()">Quarantine Source IP</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentModalAlert = null;
+
+async function fetchAlerts() {
+  const sev = document.getElementById('sel-severity').value;
+  const stat = document.getElementById('sel-status').value;
+  const search = document.getElementById('txt-search-alerts').value;
+
+  const url = `/api/alerts?severity=${encodeURIComponent(sev)}&status=${encodeURIComponent(stat)}&search=${encodeURIComponent(search)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+
+  const tbody = document.getElementById('tbl-alerts-body');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 25px;">No matching alerts in queue.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(a => {
+    let sevClass = 'badge-low';
+    if (a.severity === 'Critical') sevClass = 'badge-dos';
+    else if (a.severity === 'High') sevClass = 'badge-high';
+    else if (a.severity === 'Medium') sevClass = 'badge-medium';
+
+    let statusStyle = a.status === 'Resolved' ? 'color: var(--success);' : (a.status === 'Acknowledged' ? 'color: var(--accent-cyan);' : 'color: var(--danger); font-weight: 700;');
+
+    return `
+      <tr>
+        <td>#${a.id}</td>
+        <td style="color: var(--text-muted);">${a.timestamp}</td>
+        <td><strong>${a.threat_type}</strong></td>
+        <td><code>${a.src_ip}</code></td>
+        <td><code>${a.dst_ip}</code></td>
+        <td><span class="badge ${sevClass}">${a.severity}</span></td>
+        <td>${(a.confidence * 100).toFixed(1)}%</td>
+        <td style="${statusStyle}">${a.status}</td>
+        <td>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-outline btn-sm" onclick='viewAlert(${JSON.stringify(a)})'>Inspect</button>
+            ${a.status === 'New' ? `<button class="btn btn-outline btn-sm" onclick="ackAlert(${a.id})">Ack</button>` : ''}
+            ${a.status !== 'Resolved' ? `<button class="btn btn-success btn-sm" onclick="resolveAlert(${a.id})">Resolve</button>` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function ackAlert(id) {
+  await fetch(`/api/alerts/${id}/acknowledge`, {method: 'POST'});
+  fetchAlerts();
+}
+
+async function resolveAlert(id) {
+  await fetch(`/api/alerts/${id}/resolve`, {method: 'POST'});
+  fetchAlerts();
+}
+
+function viewAlert(a) {
+  currentModalAlert = a;
+  document.getElementById('modal-alert-title').innerText = `Incident Investigation: Alert #${a.id}`;
+  document.getElementById('modal-alert-body').innerHTML = `
+    <div style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin-bottom: 14px;">
+      <div><strong>Threat Category:</strong> ${a.threat_type}</div>
+      <div><strong>Model Confidence:</strong> ${(a.confidence * 100).toFixed(2)}%</div>
+      <div><strong>Severity Rating:</strong> ${a.severity}</div>
+      <div><strong>Incident Timestamp:</strong> ${a.timestamp}</div>
+    </div>
+    <div><strong>Source Endpoint:</strong> <code>${a.src_ip}:${a.src_port || 0}</code></div>
+    <div><strong>Target Endpoint:</strong> <code>${a.dst_ip}:${a.dst_port || 0}</code></div>
+    <div><strong>Protocol:</strong> ${a.protocol || 'TCP'}</div>
+    <div><strong>Packets Ingested:</strong> ${a.packet_count || 'N/A'}</div>
+    <div><strong>Bytes Transferred:</strong> ${a.byte_count || 'N/A'}</div>
+    <div style="margin-top: 10px; color: var(--text-muted);"><em>${a.details || ''}</em></div>
+  `;
+  document.getElementById('alert-modal').classList.add('active');
+}
+
+function closeAlertModal() {
+  document.getElementById('alert-modal').classList.remove('active');
+}
+
+async function quarantineFromModal() {
+  if (!currentModalAlert) return;
+  const res = await fetch('/api/prevention/block', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      ip: currentModalAlert.src_ip,
+      reason: `Manual quarantine from Alert #${currentModalAlert.id} (${currentModalAlert.threat_type})`
+    })
+  });
+  const data = await res.json();
+  alert(data.status ? `Quarantine successful: ${data.status}` : `Notice: ${data.message || 'Complete'}`);
+  closeAlertModal();
+  fetchAlerts();
+}
+
+document.addEventListener('DOMContentLoaded', fetchAlerts);
+</script>
+{% endblock %}

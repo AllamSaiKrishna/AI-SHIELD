@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+  <div>
+    <h1 style="font-size: 22px; font-weight: 700; color: #fff;">Dataset & AI Model Management</h1>
+    <p style="color: var(--text-muted); font-size: 13px;">Underlying machine learning architecture, feature schema, and evaluation matrix</p>
+  </div>
+  <div>
+    <span class="badge badge-normal">Artifact: ids_model.joblib</span>
+  </div>
+</div>
+
+<!-- Architecture & Metadata Overview -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-card-title">Model Architecture</div>
+    <div class="stat-card-value" style="font-size: 20px; color: var(--accent-cyan);">Random Forest</div>
+    <div class="stat-card-desc">120 Estimators · Max Depth 16</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-title">Benchmark Accuracy</div>
+    <div class="stat-card-value" style="color: var(--success);">{{ (metadata.get('accuracy', 0.999) * 100)|round(2) }}%</div>
+    <div class="stat-card-desc">Evaluated on holdout test set</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-title">Feature Dimensions</div>
+    <div class="stat-card-value">10 Features</div>
+    <div class="stat-card-desc">StandardScaler normalized</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-title">Supported Classes</div>
+    <div class="stat-card-value" style="font-size: 20px; color: #a855f7;">5 Classes</div>
+    <div class="stat-card-desc">Multi-class threat detection</div>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+  <!-- Feature Importance Ranking -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Feature Importance Weights (Explainability)</div>
+    </div>
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+      Gini-impurity reduction ranking computed across all decision trees:
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      {% if metadata.get('feature_importances') %}
+        {% for feat, imp in metadata['feature_importances'].items() %}
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+            <span><code>{{ feat }}</code></span>
+            <strong>{{ (imp * 100)|round(2) }}%</strong>
+          </div>
+          <div style="height: 6px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden;">
+            <div style="height: 100%; width: {{ (imp * 100)|round(1) }}%; background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue)); border-radius: 4px;"></div>
+          </div>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Real Confusion Matrix -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Holdout Test Set Confusion Matrix</div>
+    </div>
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+      Row = Actual Ground Truth &nbsp;|&nbsp; Column = Predicted Class
+    </div>
+
+    <div class="table-responsive">
+      <table class="cyber-table" style="text-align: center;">
+        <thead>
+          <tr>
+            <th style="text-align: left;">Actual \ Pred</th>
+            <th>Normal</th>
+            <th>DoS</th>
+            <th>PortScan</th>
+            <th>BruteForce</th>
+            <th>WebAttack</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if metadata.get('confusion_matrix') %}
+            {% set classes = ['Normal', 'DoS', 'PortScan', 'BruteForce', 'WebAttack'] %}
+            {% for row in metadata['confusion_matrix'] %}
+            {% set row_idx = loop.index0 %}
+            <tr>
+              <td style="text-align: left; font-weight: 700; color: var(--accent-cyan);">{{ classes[row_idx] }}</td>
+              {% for cell in row %}
+              <td style="{% if loop.index0 == row_idx %}background: rgba(16, 185, 129, 0.15); color: #10b981; font-weight: 700;{% else %}color: var(--text-muted);{% endif %}">
+                {{ cell }}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Expected Feature Schema Table -->
+<div class="chart-card">
+  <div class="card-header">
+    <div class="card-title">Feature Dictionary & Preprocessing Pipeline</div>
+  </div>
+  <div class="table-responsive">
+    <table class="cyber-table">
+      <thead>
+        <tr>
+          <th>Feature Name</th>
+          <th>Data Type</th>
+          <th>Standardization</th>
+          <th>Technical Role in Threat Identification</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>duration</code></td><td>Float (Seconds)</td><td>StandardScaler</td><td>Separates rapid port probes (0.01s) from persistent connections</td></tr>
+        <tr><td><code>protocol</code></td><td>Categorical (Mapped)</td><td>Integer mapping</td><td>TCP (6), UDP (17), ICMP (1) transport layer protocol</td></tr>
+        <tr><td><code>packet_count</code></td><td>Integer</td><td>StandardScaler</td><td>Distinguishes volumetric DDoS bursts from routine API requests</td></tr>
+        <tr><td><code>byte_count</code></td><td>Integer</td><td>StandardScaler</td><td>Identifies payload heavy web attacks vs zero-payload scans</td></tr>
+        <tr><td><code>packet_rate</code></td><td>Float (Packets/Sec)</td><td>StandardScaler</td><td>Captures flooding intensity independent of total duration</td></tr>
+        <tr><td><code>byte_rate</code></td><td>Float (Bytes/Sec)</td><td>StandardScaler</td><td>Bandwidth saturation rate identifier</td></tr>
+        <tr><td><code>syn_ratio</code></td><td>Float (0.0 - 1.0)</td><td>StandardScaler</td><td>Elevated ratio signals SYN flood attacks or TCP scanning</td></tr>
+        <tr><td><code>ack_ratio</code></td><td>Float (0.0 - 1.0)</td><td>StandardScaler</td><td>Indicates completed handshakes and legitimate session exchange</td></tr>
+        <tr><td><code>dst_host_count</code></td><td>Integer</td><td>StandardScaler</td><td>High fan-out reveals subnet horizontal port scans</td></tr>
+        <tr><td><code>serror_rate</code></td><td>Float (0.0 - 1.0)</td><td>StandardScaler</td><td>Proportion of failed connections / handshake errors</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

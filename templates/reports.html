@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+  <div>
+    <h1 style="font-size: 22px; font-weight: 700; color: #fff;">Audit Logs & Compliance Reporting</h1>
+    <p style="color: var(--text-muted); font-size: 13px;">Immutable SQLite security logs and exportable forensics for submission</p>
+  </div>
+  <div style="display: flex; gap: 8px;">
+    <a href="/api/reports/export?type=traffic" class="btn btn-outline btn-sm">📥 Traffic CSV</a>
+    <a href="/api/reports/export?type=alerts" class="btn btn-outline btn-sm">🚨 Alerts CSV</a>
+    <a href="/api/reports/export?type=audit" class="btn btn-primary btn-sm">📑 Audit Trail CSV</a>
+  </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="stat-card" style="margin-bottom: 24px;">
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; align-items: flex-end;">
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label">Event Category</label>
+      <select class="form-control" id="sel-log-type" onchange="fetchLogs()">
+        <option value="">All Audit Categories</option>
+        <option value="MONITORING_START">Monitoring Started</option>
+        <option value="MONITORING_STOP">Monitoring Stopped</option>
+        <option value="FIREWALL_BLOCK">Firewall Block Enforcement</option>
+        <option value="FIREWALL_UNBLOCK">Firewall Rule Removed</option>
+        <option value="ALERT_ACKNOWLEDGED">Alert Acknowledged</option>
+        <option value="ALERT_RESOLVED">Alert Resolved</option>
+      </select>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label">Execution Status</label>
+      <select class="form-control" id="sel-log-status" onchange="fetchLogs()">
+        <option value="">All Statuses</option>
+        <option value="SUCCESS">Success</option>
+        <option value="WARNING">Warning</option>
+        <option value="ERROR">Error</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- Logs Table -->
+<div class="chart-card">
+  <div class="card-header">
+    <div class="card-title">Persistent Forensic Audit Trail</div>
+    <button class="btn btn-outline btn-sm" onclick="fetchLogs()">🔄 Refresh Audit Trail</button>
+  </div>
+
+  <div class="table-responsive">
+    <table class="cyber-table">
+      <thead>
+        <tr>
+          <th>Log ID</th>
+          <th>Timestamp</th>
+          <th>Event Category</th>
+          <th>Actor / Entity</th>
+          <th>Audit Details</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="tbl-logs-body">
+        <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">Loading audit logs...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function fetchLogs() {
+  const eventType = document.getElementById('sel-log-type').value;
+  const status = document.getElementById('sel-log-status').value;
+
+  const url = `/api/logs?event_type=${encodeURIComponent(eventType)}&status=${encodeURIComponent(status)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+
+  const tbody = document.getElementById('tbl-logs-body');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 25px;">No matching log events recorded.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(l => {
+    let badgeClass = 'badge-normal';
+    if (l.status === 'ERROR') badgeClass = 'badge-dos';
+    else if (l.status === 'WARNING') badgeClass = 'badge-portscan';
+
+    return `
+      <tr>
+        <td>#${l.id}</td>
+        <td style="color: var(--text-muted);">${l.timestamp}</td>
+        <td><code>${l.event_type}</code></td>
+        <td><span style="color: var(--accent-cyan); font-weight: 600;">${l.actor}</span></td>
+        <td style="font-size: 13px;">${l.details}</td>
+        <td><span class="badge ${badgeClass}">${l.status}</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+document.addEventListener('DOMContentLoaded', fetchLogs);
+</script>
+{% endblock %}

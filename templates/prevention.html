@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+  <div>
+    <h1 style="font-size: 22px; font-weight: 700; color: #fff;">Automated IPS Prevention Center</h1>
+    <p style="color: var(--text-muted); font-size: 13px;">Active firewall rule enforcement, endpoint quarantine, and safeguard whitelisting</p>
+  </div>
+  <div style="display: flex; gap: 10px; align-items: center;">
+    <span class="badge" id="badge-admin-status" style="background: rgba(0, 210, 255, 0.15); color: var(--accent-cyan);">Checking Firewall Status...</span>
+  </div>
+</div>
+
+<!-- Prevention Mode Controls -->
+<div class="stat-card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+    <div>
+      <h3 style="font-size: 15px; color: #fff; margin-bottom: 4px;">Global IPS Policy Enforcement Mode</h3>
+      <p style="color: var(--text-muted); font-size: 12px;">Controls whether confirmed AI malicious detections trigger live firewall blocking or alerts only.</p>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn btn-outline" id="btn-mode-disabled" onclick="changeMode('Disabled')">Disabled</button>
+      <button class="btn btn-outline" id="btn-mode-alert" onclick="changeMode('Alert Only')">Alert Only (IDS)</button>
+      <button class="btn btn-danger" id="btn-mode-enabled" onclick="changeMode('Enabled')">🛡️ Auto-Block (IPS)</button>
+    </div>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px;">
+  <!-- Active Blocked IPs Table -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Active Quarantined IP Addresses</div>
+      <button class="btn btn-outline btn-sm" onclick="fetchPreventionData()">🔄 Refresh Blocks</button>
+    </div>
+
+    <div class="table-responsive">
+      <table class="cyber-table">
+        <thead>
+          <tr>
+            <th>Quarantined IP</th>
+            <th>Reason / Attack Signature</th>
+            <th>Rule ID</th>
+            <th>Verification Status</th>
+            <th>Expires In</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-active-blocks">
+          <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">No IP addresses currently quarantined.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Manual Quarantine Control & Lab Scope -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Manual Lab Block & Quarantine</div>
+    </div>
+
+    <form id="frm-manual-block" onsubmit="manualBlockSubmit(event)">
+      <div class="form-group">
+        <label class="form-label">Target Test IP</label>
+        <input type="text" class="form-control" id="blk-ip" placeholder="e.g. 192.168.1.185" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Quarantine Duration (Minutes)</label>
+        <input type="number" class="form-control" id="blk-duration" value="10" min="1" max="1440">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Reason / Justification</label>
+        <input type="text" class="form-control" id="blk-reason" value="Manual Operator Quarantine (Evaluation Test)">
+      </div>
+
+      <div style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; font-size: 11px; color: var(--text-muted); margin-bottom: 14px;">
+        🔒 <strong>Authorized Test Subnets:</strong> <code>192.168.1.0/24</code>, <code>10.0.0.0/24</code><br>
+        🛡️ Whitelisted router gateways and loopback addresses cannot be blocked.
+      </div>
+
+      <button type="submit" class="btn btn-danger" style="width: 100%; justify-content: center;">
+        ⛔ Enforce Firewall Block
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Two Columns: Safeguard Whitelist and Prevention History -->
+<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 24px;">
+  <!-- Safeguard Whitelist -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Safeguard Whitelist (Protected)</div>
+    </div>
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+      These addresses are immune from IPS blocking rules to prevent loss of management access.
+    </div>
+    <div class="table-responsive">
+      <table class="cyber-table">
+        <thead>
+          <tr>
+            <th>IP / Host</th>
+            <th>Role</th>
+            <th>Protection</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-whitelist">
+          <tr><td><code>127.0.0.1</code></td><td>Loopback</td><td><span class="badge badge-normal">Immune</span></td></tr>
+          <tr><td><code>localhost</code></td><td>Host Socket</td><td><span class="badge badge-normal">Immune</span></td></tr>
+          <tr><td><code>192.168.1.1</code></td><td>Default Gateway</td><td><span class="badge badge-normal">Immune</span></td></tr>
+          <tr><td><code>10.0.0.1</code></td><td>Lab Router</td><td><span class="badge badge-normal">Immune</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Prevention Audit History -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Firewall Enforcement History</div>
+    </div>
+    <div class="table-responsive">
+      <table class="cyber-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Target IP</th>
+            <th>Action</th>
+            <th>Status</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-prevention-history">
+          <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Loading enforcement history...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function fetchPreventionData() {
+  const res = await fetch('/api/prevention/status');
+  const data = await res.json();
+
+  // Update mode buttons
+  const mode = data.mode;
+  document.getElementById('btn-mode-disabled').className = mode === 'Disabled' ? 'btn btn-primary' : 'btn btn-outline';
+  document.getElementById('btn-mode-alert').className = mode === 'Alert Only' ? 'btn btn-primary' : 'btn btn-outline';
+  document.getElementById('btn-mode-enabled').className = mode === 'Enabled' ? 'btn btn-danger' : 'btn btn-outline';
+
+  // Admin status badge
+  const adminBadge = document.getElementById('badge-admin-status');
+  if (data.is_admin) {
+    adminBadge.innerText = '🛡️ Live Windows Netsh Active';
+    adminBadge.style.color = '#10b981';
+  } else {
+    adminBadge.innerText = '🧪 Verified Lab Sandbox Active';
+    adminBadge.style.color = '#00d2ff';
+  }
+
+  // Active blocks table
+  const tbody = document.getElementById('tbl-active-blocks');
+  if (data.active_blocks.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 25px;">No active quarantine rules currently enforced.</td></tr>';
+  } else {
+    tbody.innerHTML = data.active_blocks.map(b => {
+      return `
+        <tr>
+          <td><strong style="color: var(--danger);"><code>${b.target_ip}</code></strong></td>
+          <td style="font-size: 12px;">${b.reason}</td>
+          <td><code style="font-size: 11px;">${b.rule_name}</code></td>
+          <td><span class="badge badge-normal">${b.status}</span></td>
+          <td style="color: var(--warning); font-size: 12px;">${b.expires_at ? b.expires_at.split(' ')[1] : '10m'}</td>
+          <td>
+            <button class="btn btn-outline btn-sm" onclick="unblockIP('${b.target_ip}')">Unblock</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // Fetch History
+  const hRes = await fetch('/api/prevention/history');
+  const hData = await hRes.json();
+  const hTbody = document.getElementById('tbl-prevention-history');
+  if (hData.length > 0) {
+    hTbody.innerHTML = hData.map(h => {
+      const isBlock = h.action_type === 'BLOCK';
+      return `
+        <tr>
+          <td style="color: var(--text-muted);">${h.applied_at}</td>
+          <td><code>${h.target_ip}</code></td>
+          <td><span class="badge ${isBlock ? 'badge-dos' : 'badge-normal'}">${h.action_type}</span></td>
+          <td><span class="badge badge-outline">${h.status}</span></td>
+          <td style="font-size: 12px; color: var(--text-muted);">${h.reason}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+}
+
+async function changeMode(newMode) {
+  await fetch('/api/prevention/mode', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mode: newMode})
+  });
+  updateSystemTelemetry();
+  fetchPreventionData();
+}
+
+async function manualBlockSubmit(e) {
+  e.preventDefault();
+  const ip = document.getElementById('blk-ip').value.trim();
+  const duration = parseInt(document.getElementById('blk-duration').value);
+  const reason = document.getElementById('blk-reason').value.trim();
+
+  const res = await fetch('/api/prevention/block', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ip, duration, reason})
+  });
+  const data = await res.json();
+
+  if (data.success) {
+    alert(`Firewall Rule Applied: IP ${ip} successfully quarantined (${data.status})`);
+    document.getElementById('blk-ip').value = '';
+  } else {
+    alert(`Notice: ${data.message || 'Block failed'}`);
+  }
+  fetchPreventionData();
+}
+
+async function unblockIP(ip) {
+  if (!confirm(`Confirm removal of quarantine block rule for ${ip}?`)) return;
+  await fetch('/api/prevention/unblock', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ip})
+  });
+  fetchPreventionData();
+}
+
+document.addEventListener('DOMContentLoaded', fetchPreventionData);
+</script>
+{% endblock %}

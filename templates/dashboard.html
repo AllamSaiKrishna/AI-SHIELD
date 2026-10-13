@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Top Action Toolbar -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+  <div>
+    <h1 style="font-size: 22px; font-weight: 700; color: #fff;">Executive Threat Overview</h1>
+    <p style="color: var(--text-muted); font-size: 13px;">Real-time AI threat intelligence and automated IPS mitigation posture</p>
+  </div>
+  <div style="display: flex; gap: 10px;">
+    <button class="btn btn-primary" onclick="startSimulatedMonitoring()">▶️ Start Traffic Monitor</button>
+    <button class="btn btn-outline" onclick="stopSimulatedMonitoring()">⏹️ Stop Capture</button>
+    <a href="/reports" class="btn btn-outline">📥 Export Report</a>
+  </div>
+</div>
+
+<!-- 4 Key Stat Cards -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-card-title">Total Network Flows</div>
+    <div class="stat-card-value" id="val-total-flows">0</div>
+    <div class="stat-card-desc">Ingested via live/simulation engine</div>
+  </div>
+  <div class="stat-card" style="border-top: 3px solid var(--success);">
+    <div class="stat-card-title">Normal / Benign Flows</div>
+    <div class="stat-card-value" style="color: var(--success);" id="val-normal-flows">0</div>
+    <div class="stat-card-desc">Legitimate network transactions</div>
+  </div>
+  <div class="stat-card" style="border-top: 3px solid var(--danger);">
+    <div class="stat-card-title">Confirmed Malicious</div>
+    <div class="stat-card-value" style="color: var(--danger);" id="val-malicious-flows">0</div>
+    <div class="stat-card-desc">Flagged by AI threat models</div>
+  </div>
+  <div class="stat-card" style="border-top: 3px solid var(--accent-cyan);">
+    <div class="stat-card-title">IPS Active Blocks</div>
+    <div class="stat-card-value" style="color: var(--accent-cyan);" id="val-active-blocks">0</div>
+    <div class="stat-card-desc">Quarantined IP addresses</div>
+  </div>
+</div>
+
+<!-- Charts Grid -->
+<div class="charts-grid">
+  <!-- Traffic Rate & Threat Activity Line Chart -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Network Flow Volume & Threat Detection Over Time</div>
+      <span class="badge badge-normal">Real-Time Telemetry</span>
+    </div>
+    <div style="height: 260px; position: relative;">
+      <canvas id="trafficLineChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Attack Classification Doughnut Chart -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Threat Category Distribution</div>
+    </div>
+    <div style="height: 260px; position: relative; display: flex; align-items: center; justify-content: center;">
+      <canvas id="threatDoughnutChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Two Columns: Recent Alerts and Recent Flows -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+  <!-- Recent Alerts -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Recent High-Priority Alerts</div>
+      <a href="/alerts" class="btn btn-outline btn-sm">View All Alerts →</a>
+    </div>
+    <div class="table-responsive">
+      <table class="cyber-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Threat</th>
+            <th>Source IP</th>
+            <th>Severity</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-recent-alerts">
+          <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No active alerts detected.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Recent Live Traffic Stream -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Live Traffic Ingestion Stream</div>
+      <a href="/monitoring" class="btn btn-outline btn-sm">Full Monitoring →</a>
+    </div>
+    <div class="table-responsive">
+      <table class="cyber-table">
+        <thead>
+          <tr>
+            <th>Source IP</th>
+            <th>Protocol</th>
+            <th>Packets</th>
+            <th>Classification</th>
+            <th>Confidence</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-recent-traffic">
+          <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Awaiting traffic stream...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let lineChart = null;
+let doughnutChart = null;
+let chartTimeLabels = [];
+let chartFlowData = [];
+let chartThreatData = [];
+
+function initCharts() {
+  const lineCtx = document.getElementById('trafficLineChart').getContext('2d');
+  lineChart = new Chart(lineCtx, {
+    type: 'line',
+    data: {
+      labels: ['-30s', '-25s', '-20s', '-15s', '-10s', '-5s', 'Now'],
+      datasets: [
+        {
+          label: 'Total Flows',
+          data: [0, 0, 0, 0, 0, 0, 0],
+          borderColor: '#00d2ff',
+          backgroundColor: 'rgba(0, 210, 255, 0.1)',
+          fill: true,
+          tension: 0.3
+        },
+        {
+          label: 'Malicious Incursions',
+          data: [0, 0, 0, 0, 0, 0, 0],
+          borderColor: '#ef4444',
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          fill: true,
+          tension: 0.3
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#94a3b8' } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' }, beginAtZero: true }
+      }
+    }
+  });
+
+  const dCtx = document.getElementById('threatDoughnutChart').getContext('2d');
+  doughnutChart = new Chart(dCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Normal', 'DoS / DDoS', 'PortScan', 'Brute Force', 'Web Attack'],
+      datasets: [{
+        data: [1, 0, 0, 0, 0],
+        backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#a855f7', '#ec4899'],
+        borderColor: '#131f37',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12 } }
+      }
+    }
+  });
+}
+
+async function fetchDashboardMetrics() {
+  try {
+    const res = await fetch('/api/metrics');
+    const data = await res.json();
+
+    document.getElementById('val-total-flows').innerText = data.total_flows.toLocaleString();
+    document.getElementById('val-normal-flows').innerText = data.normal_flows.toLocaleString();
+    document.getElementById('val-malicious-flows').innerText = data.malicious_flows.toLocaleString();
+    document.getElementById('val-active-blocks').innerText = data.active_blocks;
+
+    // Update Doughnut Chart
+    if (data.breakdown) {
+      const counts = [
+        data.breakdown['Normal'] || 0,
+        data.breakdown['DoS / DDoS'] || 0,
+        data.breakdown['PortScan'] || 0,
+        data.breakdown['Brute Force'] || 0,
+        data.breakdown['Web Attack'] || 0
+      ];
+      doughnutChart.data.datasets[0].data = counts;
+      doughnutChart.update();
+    }
+
+    // Update Line Chart progression
+    if (lineChart) {
+      const now = new Date().toLocaleTimeString().split(' ')[0];
+      lineChart.data.labels.shift();
+      lineChart.data.labels.push(now);
+      lineChart.data.datasets[0].data.shift();
+      lineChart.data.datasets[0].data.push(data.total_flows);
+      lineChart.data.datasets[1].data.shift();
+      lineChart.data.datasets[1].data.push(data.malicious_flows);
+      lineChart.update();
+    }
+
+    // Render Recent Alerts
+    const alertsTbody = document.getElementById('tbl-recent-alerts');
+    if (data.recent_alerts && data.recent_alerts.length > 0) {
+      alertsTbody.innerHTML = data.recent_alerts.map(a => {
+        const sevClass = a.severity.toLowerCase() === 'critical' ? 'badge-dos' : (a.severity.toLowerCase() === 'high' ? 'badge-high' : 'badge-low');
+        return `
+          <tr>
+            <td style="color: var(--text-muted);">${a.timestamp.split(' ')[1] || a.timestamp}</td>
+            <td style="font-weight: 600;">${a.threat_type}</td>
+            <td><code>${a.src_ip}</code></td>
+            <td><span class="badge ${sevClass}">${a.severity}</span></td>
+            <td><span class="badge badge-outline">${a.status}</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Render Recent Traffic
+    const trafficTbody = document.getElementById('tbl-recent-traffic');
+    if (data.recent_traffic && data.recent_traffic.length > 0) {
+      trafficTbody.innerHTML = data.recent_traffic.slice(0, 6).map(t => {
+        let badgeClass = 'badge-normal';
+        if (t.predicted_class === 'DoS / DDoS') badgeClass = 'badge-dos';
+        else if (t.predicted_class === 'PortScan') badgeClass = 'badge-portscan';
+        else if (t.predicted_class === 'Brute Force') badgeClass = 'badge-bruteforce';
+        else if (t.predicted_class === 'Web Attack') badgeClass = 'badge-webattack';
+        
+        return `
+          <tr>
+            <td><code>${t.src_ip}</code></td>
+            <td>${t.protocol}</td>
+            <td>${t.packet_count}</td>
+            <td><span class="badge ${badgeClass}">${t.predicted_class}</span></td>
+            <td>${(t.confidence * 100).toFixed(1)}%</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+  } catch (err) {
+    console.warn("Metrics refresh error:", err);
+  }
+}
+
+async function startSimulatedMonitoring() {
+  await startMonitoring('simulation');
+  fetchDashboardMetrics();
+}
+
+async function stopSimulatedMonitoring() {
+  await stopMonitoring();
+  fetchDashboardMetrics();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initCharts();
+  fetchDashboardMetrics();
+  setInterval(fetchDashboardMetrics, 2000);
+});
+</script>
+{% endblock %}

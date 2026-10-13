@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+  <div>
+    <h1 style="font-size: 22px; font-weight: 700; color: #fff;">Live Network Traffic Monitoring</h1>
+    <p style="color: var(--text-muted); font-size: 13px;">Real-time packet and flow inspection with inline AI inference</p>
+  </div>
+  <div style="display: flex; gap: 10px; align-items: center;">
+    <button class="btn btn-primary" id="btn-start-monitor" onclick="triggerStart()">▶️ Start Capture</button>
+    <button class="btn btn-danger" id="btn-stop-monitor" onclick="triggerStop()">⏹️ Stop Capture</button>
+  </div>
+</div>
+
+<!-- Controls Bar -->
+<div class="stat-card" style="margin-bottom: 24px;">
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto; gap: 16px; align-items: flex-end;">
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label">Network Interface</label>
+      <select class="form-control" id="sel-interface">
+        <option value="Default (Ethernet/WiFi)">Default (Ethernet/WiFi Adapter)</option>
+        <option value="Virtual Lab Adapter">Virtual Lab Network [192.168.1.0/24]</option>
+        <option value="Loopback Adapter">Local Loopback (127.0.0.1)</option>
+      </select>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label">Capture Mode</label>
+      <select class="form-control" id="sel-mode">
+        <option value="simulation">Simulated Attack Flows (Recommended for Demo)</option>
+        <option value="dataset_replay">Dataset Replay (sample_traffic.csv)</option>
+        <option value="live">Live Host Socket Sniffer</option>
+      </select>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label">Filter Threat Class</label>
+      <select class="form-control" id="sel-filter-class" onchange="fetchTrafficData()">
+        <option value="">All Flow Classes</option>
+        <option value="Normal">Normal Only</option>
+        <option value="DoS / DDoS">DoS / DDoS</option>
+        <option value="PortScan">PortScan</option>
+        <option value="Brute Force">Brute Force</option>
+        <option value="Web Attack">Web Attack</option>
+      </select>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label">Search IP / Port</label>
+      <input type="text" class="form-control" id="txt-search" placeholder="e.g. 192.168.1." onkeyup="fetchTrafficData()">
+    </div>
+  </div>
+</div>
+
+<!-- Live Traffic Feed Table -->
+<div class="chart-card">
+  <div class="card-header">
+    <div class="card-title">Ingested Network Flow Stream</div>
+    <div style="font-size: 12px; color: var(--text-muted);">Auto-refreshing every 1.5s</div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="cyber-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Source IP:Port</th>
+          <th>Dest IP:Port</th>
+          <th>Proto</th>
+          <th>Packets</th>
+          <th>Bytes</th>
+          <th>Duration</th>
+          <th>AI Classification</th>
+          <th>Confidence</th>
+          <th>Status / Mode</th>
+        </tr>
+      </thead>
+      <tbody id="tbl-traffic-body">
+        <tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 30px;">Traffic stream paused. Click "Start Capture" above.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function triggerStart() {
+  const mode = document.getElementById('sel-mode').value;
+  const iface = document.getElementById('sel-interface').value;
+  const res = await fetch('/api/monitor/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mode: mode, interface: iface})
+  });
+  const data = await res.json();
+  updateSystemTelemetry();
+  fetchTrafficData();
+}
+
+async function triggerStop() {
+  await fetch('/api/monitor/stop', {method: 'POST'});
+  updateSystemTelemetry();
+}
+
+async function fetchTrafficData() {
+  try {
+    const filterClass = document.getElementById('sel-filter-class').value;
+    const search = document.getElementById('txt-search').value;
+    
+    let url = `/api/traffic?limit=50&class=${encodeURIComponent(filterClass)}&search=${encodeURIComponent(search)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    const tbody = document.getElementById('tbl-traffic-body');
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 20px;">No matching flows in buffer.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(t => {
+      let badgeClass = 'badge-normal';
+      if (t.predicted_class === 'DoS / DDoS') badgeClass = 'badge-dos';
+      else if (t.predicted_class === 'PortScan') badgeClass = 'badge-portscan';
+      else if (t.predicted_class === 'Brute Force') badgeClass = 'badge-bruteforce';
+      else if (t.predicted_class === 'Web Attack') badgeClass = 'badge-webattack';
+
+      return `
+        <tr>
+          <td style="color: var(--text-muted);">${t.timestamp}</td>
+          <td><code>${t.src_ip}:${t.src_port || '0'}</code></td>
+          <td><code>${t.dst_ip}:${t.dst_port || '0'}</code></td>
+          <td><strong>${t.protocol}</strong></td>
+          <td>${t.packet_count.toLocaleString()}</td>
+          <td>${t.byte_count.toLocaleString()}</td>
+          <td>${t.duration}s</td>
+          <td><span class="badge ${badgeClass}">${t.predicted_class}</span></td>
+          <td><strong>${(t.confidence * 100).toFixed(1)}%</strong></td>
+          <td style="color: var(--text-muted); font-size: 11px;">${t.source_mode}</td>
+        </tr>
+      `;
+    }).join('');
+
+  } catch (err) {
+    console.warn("Traffic fetch error:", err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  fetchTrafficData();
+  setInterval(fetchTrafficData, 1500);
+});
+</script>
+{% endblock %}

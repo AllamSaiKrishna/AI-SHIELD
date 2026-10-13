@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+  <div>
+    <h1 style="font-size: 22px; font-weight: 700; color: #fff;">System Settings & Operational Guardrails</h1>
+    <p style="color: var(--text-muted); font-size: 13px;">Configure detection sensitivities, firewall policies, and lab scope constraints</p>
+  </div>
+  <div>
+    <button class="btn btn-danger btn-sm" onclick="confirmResetDemo()">⚠️ Clear Demo Data</button>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+  <!-- Operational Parameters Form -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Threat Detection & IPS Policies</div>
+    </div>
+
+    <form id="frm-settings" onsubmit="saveSettings(event)">
+      <div class="form-group">
+        <label class="form-label">AI Alert Confidence Threshold: <span id="lbl-threshold" style="color: var(--accent-cyan); font-weight: 700;">70%</span></label>
+        <input type="range" class="form-control" id="cfg-threshold" min="0.50" max="0.95" step="0.05" value="0.70" oninput="document.getElementById('lbl-threshold').innerText = `${Math.round(this.value * 100)}%`">
+        <small style="color: var(--text-muted); font-size: 11px;">Flows with model probability exceeding this threshold trigger alerts.</small>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Auto-Block Quarantine Duration (Minutes)</label>
+        <input type="number" class="form-control" id="cfg-duration" value="10" min="1" max="1440">
+        <small style="color: var(--text-muted); font-size: 11px;">Automatic TTL expiry for rules inserted into the firewall.</small>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Minimum Auto-Block Threat Severity</label>
+        <select class="form-control" id="cfg-min-severity">
+          <option value="Critical" selected>Critical Only (DoS / Volumetric DDoS)</option>
+          <option value="High">High & Critical (DoS, Brute Force, Web Attacks)</option>
+          <option value="Medium">Medium, High & Critical (Include PortScans)</option>
+        </select>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="margin-top: 10px;">
+        💾 Save System Settings
+      </button>
+    </form>
+  </div>
+
+  <!-- Operational Guardrails & Diagnostics -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Lab Scope & System Diagnostics</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
+      <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+        <strong style="color: #fff;">Authorized Lab Subnets:</strong>
+        <div style="margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap;">
+          <span class="badge badge-normal">192.168.1.0/24</span>
+          <span class="badge badge-normal">10.0.0.0/24</span>
+          <span class="badge badge-normal">172.16.0.0/24</span>
+        </div>
+      </div>
+
+      <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+        <strong style="color: #fff;">Database Persistence:</strong>
+        <div style="margin-top: 4px; color: var(--text-muted);">
+          Engine: SQLite 3<br>
+          Location: <code>instance/ai_shield.db</code><br>
+          Indexed Tables: <code>traffic_records</code>, <code>alerts</code>, <code>prevention_actions</code>, <code>audit_logs</code>
+        </div>
+      </div>
+
+      <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+        <strong style="color: #fff;">Security Safeguards:</strong>
+        <div style="margin-top: 4px; color: var(--text-muted);">
+          ✓ Whitelist protection prevents lockout of host & default gateway.<br>
+          ✓ Verified rollback timers automatically expire stale rules.<br>
+          ✓ Subnet guardrails prevent accidental blacklisting of external IPs.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function saveSettings(e) {
+  e.preventDefault();
+  const payload = {
+    detection_threshold: parseFloat(document.getElementById('cfg-threshold').value),
+    block_duration_minutes: parseInt(document.getElementById('cfg-duration').value),
+    auto_block_severity: document.getElementById('cfg-min-severity').value
+  };
+
+  const res = await fetch('/api/settings/update', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  alert(data.message || 'Settings updated successfully');
+}
+
+async function confirmResetDemo() {
+  if (!confirm("This will clear all ingested traffic flows and alerts to reset the system for a fresh evaluation demonstration. Audit logs will be preserved. Proceed?")) return;
+
+  const res = await fetch('/api/system/reset', {method: 'POST'});
+  const data = await res.json();
+  alert(data.message || 'Demo reset complete.');
+  location.href = '/';
+}
+</script>
+{% endblock %}

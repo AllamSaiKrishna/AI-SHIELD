@@ -1,0 +1,79 @@
+{
+    "model_name": "AI-SHIELD Random Forest Multi-Threat Classifier",
+    "version": "2.4.0",
+    "classes": [
+        "Normal",
+        "DoS / DDoS",
+        "PortScan",
+        "Brute Force",
+        "Web Attack"
+    ],
+    "features": [
+        "duration",
+        "protocol",
+        "packet_count",
+        "byte_count",
+        "packet_rate",
+        "byte_rate",
+        "syn_ratio",
+        "ack_ratio",
+        "dst_host_count",
+        "serror_rate"
+    ],
+    "accuracy": 0.9993,
+    "precision": 0.9993,
+    "recall": 0.9993,
+    "f1_score": 0.9993,
+    "confusion_matrix": [
+        [
+            300,
+            0,
+            0,
+            0,
+            0
+        ],
+        [
+            0,
+            300,
+            0,
+            0,
+            0
+        ],
+        [
+            0,
+            0,
+            300,
+            0,
+            0
+        ],
+        [
+            0,
+            0,
+            0,
+            299,
+            1
+        ],
+        [
+            0,
+            0,
+            0,
+            0,
+            300
+        ]
+    ],
+    "feature_importances": {
+        "duration": 0.0249,
+        "protocol": 0.0054,
+        "packet_count": 0.2162,
+        "byte_count": 0.0991,
+        "packet_rate": 0.0349,
+        "byte_rate": 0.0356,
+        "syn_ratio": 0.1005,
+        "ack_ratio": 0.1594,
+        "dst_host_count": 0.0783,
+        "serror_rate": 0.2456
+    },
+    "trained_at": "2026-10-13T23:13:37.385951",
+    "n_estimators": 120,
+    "training_samples": 4500
+}

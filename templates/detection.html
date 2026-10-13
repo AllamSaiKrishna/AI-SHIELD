@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+  <div>
+    <h1 style="font-size: 22px; font-weight: 700; color: #fff;">AI Threat Detection & Inference Lab</h1>
+    <p style="color: var(--text-muted); font-size: 13px;">Inspect model architecture, test custom network vectors, and benchmark datasets</p>
+  </div>
+  <div style="display: flex; gap: 8px;">
+    <span class="badge badge-normal" id="badge-model-status">Model Loaded (v2.4)</span>
+  </div>
+</div>
+
+<!-- Model Overview Card -->
+<div class="stat-card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <div>
+      <h3 style="font-size: 16px; color: #fff; margin-bottom: 6px;">Active Model: <span style="color: var(--accent-cyan);">Random Forest Multi-Threat Classifier</span></h3>
+      <p style="color: var(--text-muted); font-size: 12px;">Trained on 10 standardized flow-statistic features across 5 threat classes.</p>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <span class="badge badge-normal">Normal</span>
+      <span class="badge badge-dos">DoS / DDoS</span>
+      <span class="badge badge-portscan">PortScan</span>
+      <span class="badge badge-bruteforce">Brute Force</span>
+      <span class="badge badge-webattack">Web Attack</span>
+    </div>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+  <!-- Section A: Single Flow Live Test Form -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Interactive Single-Flow Inference Tester</div>
+      <div style="display: flex; gap: 6px;">
+        <button class="btn btn-outline btn-sm" onclick="loadPreset('dos')">Preset: DoS</button>
+        <button class="btn btn-outline btn-sm" onclick="loadPreset('portscan')">Preset: PortScan</button>
+        <button class="btn btn-outline btn-sm" onclick="loadPreset('normal')">Preset: Normal</button>
+      </div>
+    </div>
+
+    <form id="frm-single-test" onsubmit="runSingleInference(event)">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div class="form-group">
+          <label class="form-label">Source IP</label>
+          <input type="text" class="form-control" id="f-src-ip" value="192.168.1.185">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Protocol</label>
+          <select class="form-control" id="f-protocol">
+            <option value="TCP">TCP (6)</option>
+            <option value="UDP">UDP (17)</option>
+            <option value="ICMP">ICMP (1)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Flow Duration (sec)</label>
+          <input type="number" step="0.01" class="form-control" id="f-duration" value="1.2">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Packet Count</label>
+          <input type="number" class="form-control" id="f-packets" value="45">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Byte Count</label>
+          <input type="number" class="form-control" id="f-bytes" value="4200">
+        </div>
+        <div class="form-group">
+          <label class="form-label">SYN Flag Ratio (0.0 - 1.0)</label>
+          <input type="number" step="0.01" max="1" min="0" class="form-control" id="f-syn-ratio" value="0.10">
+        </div>
+        <div class="form-group">
+          <label class="form-label">ACK Flag Ratio (0.0 - 1.0)</label>
+          <input type="number" step="0.01" max="1" min="0" class="form-control" id="f-ack-ratio" value="0.85">
+        </div>
+        <div class="form-group">
+          <label class="form-label">SYN Error Rate (0.0 - 1.0)</label>
+          <input type="number" step="0.01" max="1" min="0" class="form-control" id="f-serror" value="0.02">
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px; justify-content: center;">
+        ⚡ Execute AI Prediction
+      </button>
+    </form>
+
+    <!-- Inference Result Box -->
+    <div id="res-prediction-box" style="display: none; margin-top: 18px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border-color);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-size: 13px; color: var(--text-muted);">Model Decision:</span>
+        <span class="badge" id="res-badge-class">Normal</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-size: 13px; color: var(--text-muted);">Confidence Score:</span>
+        <strong id="res-confidence" style="color: #fff;">0.0%</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 13px; color: var(--text-muted);">IPS Response Action:</span>
+        <span id="res-action" style="color: var(--accent-cyan); font-weight: 600;">Logged</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section B: Batch Dataset Analysis & Validation -->
+  <div class="chart-card">
+    <div class="card-header">
+      <div class="card-title">Dataset Batch Testing & Ground-Truth Evaluation</div>
+    </div>
+
+    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+      Validate model generalizability on preloaded or custom flow datasets. Ground-truth evaluation compares actual labels against AI predictions.
+    </p>
+
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+      <button class="btn btn-primary" onclick="analyzeBenchmarkSuite()">🧪 Run Benchmark Evaluation</button>
+      <label class="btn btn-outline" style="cursor: pointer;">
+        📁 Upload CSV Dataset
+        <input type="file" id="file-upload" accept=".csv" style="display: none;" onchange="uploadAndAnalyze(event)">
+      </label>
+    </div>
+
+    <!-- Evaluation Metrics Box -->
+    <div id="box-eval-metrics" style="background: var(--bg-secondary); padding: 18px; border-radius: 8px; border: 1px solid var(--border-color);">
+      <h4 style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 12px;">Evaluation Benchmark Results</h4>
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; text-align: center;">
+        <div style="background: var(--bg-card); padding: 10px; border-radius: 6px;">
+          <div style="font-size: 11px; color: var(--text-muted);">Accuracy</div>
+          <div id="metric-acc" style="font-size: 18px; font-weight: 700; color: var(--success);">99.9%</div>
+        </div>
+        <div style="background: var(--bg-card); padding: 10px; border-radius: 6px;">
+          <div style="font-size: 11px; color: var(--text-muted);">Precision</div>
+          <div id="metric-prec" style="font-size: 18px; font-weight: 700; color: var(--accent-cyan);">99.9%</div>
+        </div>
+        <div style="background: var(--bg-card); padding: 10px; border-radius: 6px;">
+          <div style="font-size: 11px; color: var(--text-muted);">Recall</div>
+          <div id="metric-rec" style="font-size: 18px; font-weight: 700; color: #a855f7;">99.9%</div>
+        </div>
+        <div style="background: var(--bg-card); padding: 10px; border-radius: 6px;">
+          <div style="font-size: 11px; color: var(--text-muted);">F1-Score</div>
+          <div id="metric-f1" style="font-size: 18px; font-weight: 700; color: var(--warning);">99.9%</div>
+        </div>
+      </div>
+      
+      <div style="margin-top: 16px;">
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Breakdown of Classified Flows:</div>
+        <div id="metric-distribution" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function loadPreset(type) {
+  if (type === 'dos') {
+    document.getElementById('f-src-ip').value = '192.168.1.105';
+    document.getElementById('f-protocol').value = 'TCP';
+    document.getElementById('f-duration').value = '2.4';
+    document.getElementById('f-packets').value = '8500';
+    document.getElementById('f-bytes').value = '520000';
+    document.getElementById('f-syn-ratio').value = '0.94';
+    document.getElementById('f-ack-ratio').value = '0.02';
+    document.getElementById('f-serror').value = '0.88';
+  } else if (type === 'portscan') {
+    document.getElementById('f-src-ip').value = '192.168.1.200';
+    document.getElementById('f-protocol').value = 'TCP';
+    document.getElementById('f-duration').value = '0.05';
+    document.getElementById('f-packets').value = '2';
+    document.getElementById('f-bytes').value = '80';
+    document.getElementById('f-syn-ratio').value = '1.0';
+    document.getElementById('f-ack-ratio').value = '0.0';
+    document.getElementById('f-serror').value = '1.0';
+  } else {
+    document.getElementById('f-src-ip').value = '192.168.1.50';
+    document.getElementById('f-protocol').value = 'TCP';
+    document.getElementById('f-duration').value = '1.5';
+    document.getElementById('f-packets').value = '30';
+    document.getElementById('f-bytes').value = '2800';
+    document.getElementById('f-syn-ratio').value = '0.08';
+    document.getElementById('f-ack-ratio').value = '0.88';
+    document.getElementById('f-serror').value = '0.01';
+  }
+}
+
+async function runSingleInference(e) {
+  e.preventDefault();
+  const payload = {
+    src_ip: document.getElementById('f-src-ip').value,
+    protocol: document.getElementById('f-protocol').value,
+    duration: parseFloat(document.getElementById('f-duration').value),
+    packet_count: parseInt(document.getElementById('f-packets').value),
+    byte_count: parseInt(document.getElementById('f-bytes').value),
+    syn_ratio: parseFloat(document.getElementById('f-syn-ratio').value),
+    ack_ratio: parseFloat(document.getElementById('f-ack-ratio').value),
+    serror_rate: parseFloat(document.getElementById('f-serror').value),
+    dst_host_count: 5
+  };
+
+  const res = await fetch('/api/detection/predict', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+
+  const box = document.getElementById('res-prediction-box');
+  const badge = document.getElementById('res-badge-class');
+  const conf = document.getElementById('res-confidence');
+  const action = document.getElementById('res-action');
+
+  box.style.display = 'block';
+  badge.innerText = data.predicted_class;
+  
+  if (data.predicted_class === 'Normal') badge.className = 'badge badge-normal';
+  else if (data.predicted_class === 'DoS / DDoS') badge.className = 'badge badge-dos';
+  else if (data.predicted_class === 'PortScan') badge.className = 'badge badge-portscan';
+  else if (data.predicted_class === 'Brute Force') badge.className = 'badge badge-bruteforce';
+  else badge.className = 'badge badge-webattack';
+
+  conf.innerText = `${(data.confidence * 100).toFixed(1)}%`;
+  action.innerText = data.action_taken || 'Logged';
+}
+
+async function analyzeBenchmarkSuite() {
+  const res = await fetch('/api/dataset/analyze', {method: 'POST'});
+  const data = await res.json();
+  renderEvaluationResults(data);
+}
+
+async function uploadAndAnalyze(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch('/api/dataset/analyze', {
+    method: 'POST',
+    body: formData
+  });
+  const data = await res.json();
+  renderEvaluationResults(data);
+}
+
+function renderEvaluationResults(data) {
+  if (data.metrics) {
+    document.getElementById('metric-acc').innerText = `${(data.metrics.accuracy * 100).toFixed(1)}%`;
+    document.getElementById('metric-prec').innerText = `${(data.metrics.precision * 100).toFixed(1)}%`;
+    document.getElementById('metric-rec').innerText = `${(data.metrics.recall * 100).toFixed(1)}%`;
+    document.getElementById('metric-f1').innerText = `${(data.metrics.f1_score * 100).toFixed(1)}%`;
+  }
+  
+  if (data.attack_counts) {
+    const distDiv = document.getElementById('metric-distribution');
+    distDiv.innerHTML = Object.entries(data.attack_counts).map(([cls, count]) => {
+      return `<span class="badge badge-outline" style="font-size: 12px;">${cls}: <strong>${count}</strong></span>`;
+    }).join(' ');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  analyzeBenchmarkSuite();
+});
+</script>
+{% endblock %}
